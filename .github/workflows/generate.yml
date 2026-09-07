@@ -1,1 +1,29 @@
+name: Weekly Note Article Generator (Discord Notify)
 
+on:
+  schedule:
+    # 毎週 月・水・金の UTC 23:00 (日本時間 火・木・土の 朝8:00)
+    # ※もし月水金曜の朝に動かしたい場合は UTC日・火・木の 23:00 に設定します
+    - cron: '0 23 * * 1,3,5' 
+  workflow_dispatch: # 手動実行ボタンも有効化
+
+jobs:
+  generate-and-notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: pip install google-genai requests
+
+      - name: Run Python script
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: python main.py
