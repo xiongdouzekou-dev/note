@@ -2,7 +2,7 @@ import os
 import requests
 from google import genai
 
-# Geminiクライアントの初期化 (Google GenAI SDKを使用)
+# Geminiクライアントの初期化
 client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 
 # 1. Gemini APIによるリサーチ＆記事執筆
@@ -18,30 +18,27 @@ prompt = """
 """
 
 response = client.models.generate_content(
-    model="gemini-3.6-flash",  # または用途に合わせたモデル
+    model="gemini-3.6-flash",
     contents=prompt,
 )
 
 article_content = response.text
-
-# 2. DiscordへのWebhook送信
 discord_webhook_url = os.environ.get("DISCORD_WEBHOOK_URL")
 
-# Discordのメッセージ制限（2000文字）対策として、分割または冒頭部分の通知にする場合もありますが、
-# Webhook経由で長文を送るための処理
-payload = {"content": f"【本日のnote自動生成記事（要確認・手動投稿用）】\n\n{article_content}"}
+# 2. Discordの2000文字制限対策：長文を分割して連投する関数
+def send_to_discord(webhook_url, text):
+    max_length = 1900
+    # テキストを1900文字ごとにスライスしてリスト化
+    chunks = [text[i:i+max_length] for i in range(0, len(text), max_length)]
+    
+    # 最初に通知ヘッダーを送信
+    requests.post(webhook_url, json={"content": "【本日のnote自動生成記事（確認・手動投稿用）】"})
+    
+    # 分割したテキストを順番に送信（連投）
+    for index, chunk in enumerate(chunks):
+        payload = {"content": f"```markdown\n{chunk}\n```"}
+        requests.post(webhook_url, json=payload)
 
-# Discordは2000文字制限があるため、超える場合は分割して送るか、ファイル添付にするのが安全です
-if len(article_content) > 1900:
-  # 長い場合はファイルとして送信、あるいは分割送信
-  payload = {
-      "content": "【本日のnote自動生成記事】\n文字数が多いため、ファイルとして生成されました。（または一部抜粋）"
-  }
-  # 簡易的にテキストファイルとして送信する場合の処理などへの拡張も可能です
-
-response_discord = requests.post(discord_webhook_url, json=payload)
-
-if response_discord.status_code == 204 or response_discord.status_code == 200:
-  print("Successfully sent to Discord!")
-else:
-  print(f"Failed to send to Discord: {response_discord.text}")
+# Discordへ分割送信を実行
+send_to_discord(discord_webhook_url, article_content)
+print("Successfully sent to Discord in chunks!")
